@@ -9,16 +9,11 @@ class FileWriter:
     metadata['Timestamp'] = time.asctime()
     fname_suffix = None
     title_format = "{:>10}"
+    time_format = "{:>10.4f}"
     format = "{:>10}"
 
-    def __init__(self, fname=None, start_time=None, metadata={}, *args, **kws):
+    def __init__(self, fname=None, metadata={}, *args, **kws):
         super().__init__(*args, **kws)
-
-        if start_time is None:
-            self.start_time = time.time()
-        else:
-            self.start_time = start_time
-
         self.metadata.update(metadata)
 
         if fname is None:
@@ -53,20 +48,24 @@ class FileWriter:
         titles = ["TIME"] + self.titles
         self.title_fmt = " ".join([self.title_format] * len(titles)) + "\n"
         self.line_fmt = " ".join([self.format] * len(self.titles)) + "\n"
-        self.line_fmt = self.title_format + " " + self.line_fmt
+        self.line_fmt = self.time_format + " " + self.line_fmt
         title_line = self.title_fmt.format(*titles)
         self.f.write(title_line)
 
     def output_data(self, values):
-        time_str = "{:>7.4f}".format(time.time() - self.start_time)
-        self.f.write(self.line_fmt.format(time_str, *values))
+        self.f.write(self.line_fmt.format(*values))
         self.f.flush()
 
 class DataThreadBase(FileWriter, threading.Thread):
     connect_args = {}
     name = "data"
 
-    def __init__(self, *args, **kws):
+    def __init__(self, start_time=None, *args, **kws):
+        if start_time is None:
+            self.start_time = time.time()
+        else:
+            self.start_time = start_time
+
         self.stopping = threading.Event()
         super().__init__(*args, **kws)
 
@@ -85,5 +84,6 @@ class DataThreadBase(FileWriter, threading.Thread):
 
     def run(self):
         while not self.stopping.is_set():
+            tm = time.time() - self.start_time
             sample = self.capture_sample()
-            self.output_data(sample)
+            self.output_data((tm, ) + tuple(sample))
